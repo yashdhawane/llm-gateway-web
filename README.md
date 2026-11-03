@@ -20,6 +20,7 @@ so this app keeps Next.js's conventional 3000.
 
 - Next.js **16.4.4** (App Router, Turbopack, React Compiler off)
 - React 19, TypeScript, Tailwind CSS v4
+- shadcn/ui (Base UI primitives, Nova preset, Lucide icons)
 - Types generated from the gateway's OpenAPI contract
 
 ## Setup
@@ -68,14 +69,39 @@ npx openapi-typescript https://raw.githubusercontent.com/<owner>/LLM-Gateway/mai
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run contract:types` | Regenerate API types from the gateway contract |
 
+## UI
+
+shadcn/ui is initialized in `components.json`: Base UI primitives, the Nova
+preset, Lucide icons and CSS variables. Components are **source files** in
+`src/components/ui`, not an opaque dependency, so edit them when the design
+needs it — and expect `npx shadcn@latest add <component>` to update them.
+
+```bash
+npx shadcn@latest add select tabs tooltip   # add more as screens need them
+npx shadcn@latest docs dialog               # API + examples for one component
+```
+
+Theming is CSS variables plus a `.dark` class, both defined in
+`src/app/globals.css` and toggled by `next-themes`. Use the semantic utilities —
+`bg-background`, `text-foreground`, `text-muted-foreground`, `bg-primary`,
+`border-border` — instead of raw palette values like `bg-neutral-100`. Raw
+values do not follow the theme.
+
+Already installed: `alert`, `badge`, `button`, `card`, `dialog`,
+`dropdown-menu`, `empty`, `field`, `input`, `label`, `separator`, `skeleton`,
+`sonner`, `table`. That covers the login form and the key list; add the rest
+when a screen actually needs them.
+
 ## Structure
 
 ```text
 src/
   api/schema.d.ts          generated from the gateway's OpenAPI contract
-  app/                     App Router: layout, home page
-  components/              UI
+  app/                     App Router: layout, home page, global tokens
+  components/              app components (status card, theme provider, toggle)
+  components/ui/           shadcn/ui source files
   lib/api.ts               the only module that calls the gateway
+  lib/utils.ts             `cn()` class merge
 ```
 
 ## Rules this app follows

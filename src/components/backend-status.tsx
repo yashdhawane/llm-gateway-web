@@ -1,6 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  CircleAlertIcon,
+  CircleCheckIcon,
+  Loader2Icon,
+  RefreshCwIcon,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { healthUrl } from "@/lib/api";
 
 interface Health {
@@ -14,13 +31,28 @@ type State =
   | { kind: "up"; health: Health }
   | { kind: "down"; message: string };
 
+/** Seconds are precise but unreadable; minutes and hours are what a human wants. */
+function formatUptime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+
+  return `${seconds}s`;
+}
+
 /**
  * Reads the public readiness probe.
  *
- * Deliberately a plain function that returns the next state instead of calling
- * `setState` itself: the effect and the button both need the same request, and
- * keeping the fetch free of React state lets the effect settle it in a promise
- * callback rather than a synchronous update.
+ * A plain function that returns the next state instead of calling `setState`
+ * itself: the effect and the button need the same request, and the effect can
+ * then settle it in a promise callback rather than a synchronous update.
  */
 async function probe(): Promise<State> {
   try {
@@ -73,43 +105,60 @@ export function BackendStatus() {
   };
 
   return (
-    <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
-          Gateway
-        </h2>
-        <button
-          type="button"
-          onClick={recheck}
-          className="rounded-md border border-neutral-300 px-3 py-1 text-sm transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-        >
-          Recheck
-        </button>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Gateway</CardTitle>
+        <CardDescription>
+          Live readiness probe from the browser. This proves the base URL and
+          CORS before any feature depends on them.
+        </CardDescription>
+        <CardAction>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={recheck}
+            disabled={state.kind === "checking"}
+          >
+            {state.kind === "checking" ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <RefreshCwIcon />
+            )}
+            Recheck
+          </Button>
+        </CardAction>
+      </CardHeader>
 
-      <p className="mt-3 text-lg font-semibold">
-        {state.kind === "checking" && "Checking…"}
+      <CardContent className="space-y-2">
+        {state.kind === "checking" && (
+          <Badge variant="secondary">
+            <Loader2Icon className="animate-spin" />
+            Checking
+          </Badge>
+        )}
+
         {state.kind === "up" && (
-          <span className="text-emerald-600 dark:text-emerald-400">
-            {state.health.status} · db {state.health.db}
-          </span>
+          <>
+            <Badge variant="outline">
+              <CircleCheckIcon />
+              {state.health.status} · db {state.health.db}
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Up {formatUptime(state.health.uptimeSeconds)}
+            </p>
+          </>
         )}
+
         {state.kind === "down" && (
-          <span className="text-red-600 dark:text-red-400">Unreachable</span>
+          <>
+            <Badge variant="destructive">
+              <CircleAlertIcon />
+              Unreachable
+            </Badge>
+            <p className="text-sm text-muted-foreground">{state.message}</p>
+          </>
         )}
-      </p>
-
-      {state.kind === "up" && (
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Up {state.health.uptimeSeconds}s
-        </p>
-      )}
-
-      {state.kind === "down" && (
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          {state.message}
-        </p>
-      )}
-    </section>
+      </CardContent>
+    </Card>
   );
 }

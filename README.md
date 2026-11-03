@@ -31,8 +31,7 @@ cp .env.example .env.local     # already present for local work
 npm run dev                    # http://localhost:3000
 ```
 
-The gateway has to be running for the status card on the home page to turn
-green:
+The gateway has to be running for sign-in and the dashboard to work:
 
 ```bash
 cd "../LLM Gateway" && npm run start:dev
@@ -57,6 +56,42 @@ the raw file instead:
 ```bash
 npx openapi-typescript https://raw.githubusercontent.com/<owner>/LLM-Gateway/main/contracts/openapi.json -o src/api/schema.d.ts
 ```
+
+One gap in the published contract: `POST /auth/login` and `POST /auth/signup`
+have **no response schema** — the routes return the session object without a
+Swagger response model. `src/lib/auth.ts` therefore declares `Session` by hand
+from `docs/FRONTEND_CONTRACT.md` §3, and regenerating types will not add it.
+
+## Authentication
+
+| Route | File | Requires |
+| --- | --- | --- |
+| `/login` | `src/app/(auth)/login/page.tsx` | signed out |
+| `/signup` | `src/app/(auth)/signup/page.tsx` | signed out |
+| `/` | `src/app/(app)/page.tsx` | signed in |
+
+The flow:
+
+1. `POST /auth/login` or `POST /auth/signup` returns `{ accessToken, user }`.
+2. `src/lib/auth.ts` stores it in a module-level store and publishes it through
+   `useSession()` (`useSyncExternalStore`), so there is no provider to thread.
+3. The form redirects to `?next=` — sanitised by `safeNextPath()`, so only
+   same-site paths are accepted.
+4. `RequireAuth` renders a skeleton and redirects to `/login?next=…` when the
+   store is empty.
+5. The dashboard reads `GET /auth/me` once. A `401` closes the session and
+   returns to `/login` rather than leaving a dashboard that fails every request.
+6. Sign out clears the store. The backend has no logout route yet, so the JWT
+   stays valid server-side until it expires.
+
+**Reloading signs you out.** That is deliberate, not a bug: the token lasts 7
+days and cannot be revoked, so it never touches `localStorage` or
+`sessionStorage`. The refresh-token phase changes `src/lib/auth.ts` and leaves
+the screens alone.
+
+Errors are shown by `code`, not by message: `AUTHENTICATION_ERROR` becomes
+"email or password is incorrect", `EMAIL_ALREADY_EXISTS` points at sign-in, and
+the trace ID is printed so the failing request can be found in the gateway log.
 
 ## Scripts
 
@@ -97,11 +132,22 @@ when a screen actually needs them.
 ```text
 src/
   api/schema.d.ts          generated from the gateway's OpenAPI contract
-  app/                     App Router: layout, home page, global tokens
-  components/              app components (status card, theme provider, toggle)
-  components/ui/           shadcn/ui source files
-  lib/api.ts               the only module that calls the gateway
-  lib/utils.ts             `cn()` class merge
+  app/
+    (app)/                 signed-in routes: header + dashboard at /
+    (auth)/                signed-out routes: /login, /signup
+    layout.tsx             providers, fonts, toaster
+    globals.css            design tokens (light + dark)
+  components/
+    auth/                  login form, signup form, guard, password input
+    ui/                    shadcn/ui source files
+    site-header.tsx        signed-in chrome
+    session-card.tsx       profile read from GET /auth/me
+  lib/
+    api.ts                 the only module that calls the gateway
+    auth.ts                session store (memory only) and auth calls
+    auth-rules.ts          client validation mirrors + safe ?next=
+    error-copy.ts          error code → human copy
+    utils.ts               `cn()` class merge
 ```
 
 ## Rules this app follows
@@ -115,11 +161,15 @@ src/
    from `/auth/login`; `/chat/completions` and `/models` take an `lg_...` API
    key. Using the wrong one is a 401, not a fallback.
 4. **Keep the session in memory.** The JWT is valid for 7 days and cannot be
-   revoked, so it must not reach `localStorage`. A refresh cookie arrives in a
-   later backend phase; until then only `src/lib/api.ts` and the auth state
-   should need to change.
+   revoked, so it must not reach `localStorage` or `sessionStorage`.
+   `src/lib/auth.ts` is the only module that holds it; a refresh cookie arrives
+   in a later backend phase.
 5. **No secrets in `NEXT_PUBLIC_*`.** Those values are inlined into the browser
    bundle.
+6. **Ids must be unique per route, not just per page.** Next keeps the previous
+   route mounted (hidden) after a client navigation, so two `id="email"` inputs
+   can exist at once — invalid HTML that breaks label targeting and autofill.
+   Forms here prefix their ids (`login-email`, `signup-email`).
 
 ## CORS
 

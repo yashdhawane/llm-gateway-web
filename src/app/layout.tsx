@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 
-import { ModeToggle } from "@/components/mode-toggle";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
@@ -16,6 +15,10 @@ export const metadata: Metadata = {
     "Dashboard for the LLM Gateway API: sessions, keys, models and usage.",
 };
 
+/**
+ * Providers and typography only. Chrome belongs to the layouts that need it:
+ * `(app)` has the signed-in header, `(auth)` has the centred card.
+ */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -30,13 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4">
-            <span className="text-sm font-medium">LLM Gateway</span>
-            <ModeToggle />
-          </div>
-
           {children}
-
           <Toaster position="bottom-right" />
         </ThemeProvider>
       </body>
